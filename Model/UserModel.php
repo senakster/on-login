@@ -108,7 +108,7 @@ class UserModel {
             
             // EXECUTE SQL
             $query = "INSERT INTO `users` ($columns) VALUES ($placeholders)";
-            $sth = $this->db->con->prepare($query) or throw new PDOException(var_dump($this->connection->errorInfo()));
+            $sth = $this->db->con->prepare($query) or die(var_dump($this->connection->errorInfo()));
             foreach( $placeholderArr as $k => $p) {
                 $sth->bindParam($p,$dataArr[$k],PDO::PARAM_STR);
             }
@@ -130,7 +130,7 @@ class UserModel {
     public function setRefreshToken($refresh_token, $uid) {
         try {
         $query = "UPDATE `users` SET `refresh_token` = :refresh_token WHERE `userid` = :userid";
-        $sth = $this->db->con->prepare($query) or throw new PDOException($this->db->con->errorInfo());
+        $sth = $this->db->con->prepare($query) or die($this->db->con->errorInfo());
         $sth->bindParam(':refresh_token', $refresh_token, PDO::PARAM_STR);
         $sth->bindParam(':userid', $uid, PDO::PARAM_STR);
         if ($sth->execute()) {

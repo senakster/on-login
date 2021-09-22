@@ -1,4 +1,6 @@
 <?php
+// https://developer.okta.com/blog/2019/02/04/create-and-verify-jwts-in-php
+
 // Allow from any origin
 if (isset($_SERVER['HTTP_ORIGIN'])) {
     // should do a check here to match $_SERVER['HTTP_ORIGIN'] to a
@@ -21,8 +23,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 require __DIR__ . "/Bootstrap.php";
 use Controller\Router;
-// https://developer.okta.com/blog/2019/02/04/create-and-verify-jwts-in-php
-
 
 try {
     new Router();
