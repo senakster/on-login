@@ -1,0 +1,12 @@
+{
+    "require": {
+        "vlucas/phpdotenv": "^2.4",
+        "nesbot/carbon": "^2.53",
+        "firebase/php-jwt": "^5.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Src\\": "src/"
+        }
+    }
+}
