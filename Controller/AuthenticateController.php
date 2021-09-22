@@ -38,6 +38,7 @@ class AuthenticateController extends BaseController{
             $this->output->message = 'Login Succeeded';
             $user = $this->userModel->getUserSQL($data['email'], ['hash']);
             $token_pair = $this->issueToken($user);
+            $this->userModel->setRefreshToken($token_pair['refresh_token'], $user['userid']);
             $redirect = ['success' => '//omstilling.nu', 'failure' => '/Error'];
             $this->output->data = ['user' => $user, 'access_token' => $token_pair['access_token'], 'redirect' => \Config\REDIRECT];
         } else {

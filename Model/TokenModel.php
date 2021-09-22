@@ -35,11 +35,12 @@ class TokenModel {
         return ['user' => $user, 'message' => $message];
     }
 
-    public function validateRefresh($jwt) {
+    public function validateRefresh($refresh_token) {
         $valid = true;
         $rsecret = getenv('RSECRET');
+
         try {
-            $decoded = JWT::decode($jwt, $rsecret, array('HS256'));
+            $decoded = JWT::decode($refresh_token, $rsecret, array('HS256'));
         } catch (\Firebase\JWT\ExpiredException $e) {
             return ['user' => null, 'error' => 'Expired Token: ' . json_encode($e)];
         } catch (\Firebase\JWT\SignatureInvalidException $e) {
@@ -48,23 +49,31 @@ class TokenModel {
             return ['user' => null, 'error' => 'Invalid Token' . json_encode($e)];
         }
 
+
         $date = new \DateTimeImmutable();
 
-        $valid = $valid && $decoded;
-        $message = $valid ? 'Authentication succeeded' : '';
-        $user = $valid ? $this->getUserById($decoded->uid, ['hash']) : null;
-        $token_pair = $this->createToken($user);
 
-        return ['user' => $user, 'message' => $token_pair];
+        $valid = $valid && $decoded;
+        $user = $valid ? $this->getUserById($decoded->uid, ['hash']) : null;
+        $valid = $valid && $refresh_token === $user['refresh_token'];
+
+        if($valid) {
+            $token_pair = $this->createToken($user);
+            $this->setRefreshToken($token_pair['refresh_token'],$user['userid']);
+            $message = $valid ? 'Authentication succeeded' : '';
+            unset($user['refresh_token']);
+            return ['user' => $user, 'access_token' => $token_pair['access_token']];
+        }
+        return ['user' => $user, 'message' => 'Token not valid'];
+
     }
 
     private function getUserById($uid, $without = []) {
         try {
         $fetchSchema = array_diff($this->schemas->userFetch, $without); 
         //FETCH REFRESH TOKEN FOR INVALIDATION
-        // $fetchSchema[] = 'refresh_token';
+        $fetchSchema[] = 'refresh_token';
         $fetchSchema = implode(',', $fetchSchema); 
-        // return $fetchSchema;
         $query = "SELECT $fetchSchema from `users` WHERE `userid` = :userid LIMIT 1";
         $sth = $this->db->con->prepare($query);
         $sth->bindParam(':userid', $uid, PDO::PARAM_STR, 48);
@@ -122,4 +131,19 @@ class TokenModel {
         return $data;
     }
 
+    public function setRefreshToken($refresh_token, $uid) {
+        try {
+        $query = "UPDATE `users` SET `refresh_token` = :refresh_token WHERE `userid` = :userid";
+        $sth = $this->db->con->prepare($query) or throw new PDOException($this->db->con->errorInfo());
+        $sth->bindParam(':refresh_token', $refresh_token, PDO::PARAM_STR);
+        $sth->bindParam(':userid', $uid, PDO::PARAM_STR);
+        if ($sth->execute()) {
+            return 'SUCCESS - Refreshed Token';
+        } else {
+            return 'FAILED - Something went wrong :(';
+        }
+        } catch (PDOException $e) {
+            return 'FAILED - ' . $e->getMessage();
+        }
+    }
 }
