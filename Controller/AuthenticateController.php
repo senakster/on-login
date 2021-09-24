@@ -19,12 +19,12 @@ class AuthenticateController extends BaseController{
     }
 
     function validateAction() {
-        $jwt = $this->getToken();
+        $jwt = $this->getAccessToken();
         // return $jwt;
         if (!$jwt) {
-            $this->refreshAction();
+            $this->output->data = $this->refreshToken();
         } else {
-            $this->validateToken($jwt);
+            $this->output->data = $this->validateToken($jwt);
         }
         $this->serveJSON($this->output);
     }
@@ -34,6 +34,8 @@ class AuthenticateController extends BaseController{
         $this->userModel = $this->loadModel('user');
         $data = $this->getParams(Config\DB_SCHEMAS()->user->login);
         $valid = $this->userModel->validateUserPass($data);
+            $this->output->data = ['valid' => $valid];
+
         if ($valid) {
             $this->output->status = 'ok';
             $this->output->message = 'Login Succeeded';
@@ -78,6 +80,41 @@ class AuthenticateController extends BaseController{
 
     } 
 
+    public function refreshAction() {
 
+        $data = $this->refreshToken(); // ['user' => $user, 'access_token' => $access_token] || false
+        if (!$data) {
+            $this->output->data = ['user' => null];
+            $this->output->status = 'fail';
+            $this->output->message = 'No Token Provided';
 
+        } else {
+            $this->output->data = $data;
+            $this->output->status = isset($data['user']) ? 'ok' : 'ok';
+            $this->output->message = $data['error']? $data['error'] : 'Refresh Token Provided' ;
+        }
+
+        $this->serveJSON($this->output);
+        return;
+        // return $data; // => ['user' => $user, 'access_token' => $access_token]
+    }
+
+    public function testAction (){
+        $this->output->message = json_encode($this->refreshToken_test());
+        $this->output->status = 'ok';
+
+        $this->serveJSON($this->output);
+
+    }
+
+    public function refreshToken_test() {
+            $user = ['userid' => '10'];
+            $refresh_token = $this->getRefreshToken();
+            return $refresh_token;
+            $tokenModel = $this->loadModel('token');
+            $mockToken_pair = $tokenModel->createToken($user);
+
+            $data = $tokenModel->validateRefresh_test($mockToken_pair['refresh_token']);
+            return $data;
+    }
 }

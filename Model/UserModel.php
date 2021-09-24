@@ -125,10 +125,6 @@ class UserModel {
         $user = (array) $user;
 
         try {
-            //REPLACE PASSWORD WITH HASH 
-            $data['hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
-            unset($data['password']);
-
             // GENERATE SQL DATA 
             $dataArr = array_values(array_filter($data));
             $columnsArr = array_keys(array_filter($data));

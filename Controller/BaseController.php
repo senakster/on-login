@@ -84,7 +84,7 @@ class BaseController {
         return $selectedParams;
     }
 
-    protected function getToken($refresh = false) {
+    protected function getAccessToken($refresh = false) {
         $token = $this->getBearerToken();
         if (!$token) {
             $headerCookies = explode('; ', getallheaders()['Cookie']);
@@ -96,6 +96,16 @@ class BaseController {
             $token = $refresh ? $cookies['jwt_refresh'] : $cookies['jwt'];
         }
         return $token;
+    }
+    protected function getRefreshToken() {
+            $headerCookies = explode('; ', getallheaders()['Cookie']);
+            $cookies = array();
+            foreach($headerCookies as $itm) {
+                list($key, $val) = explode('=', $itm, 2);
+                $cookies[$key] = $val;
+            }
+            $token = $cookies['jwt_refresh'];
+            return $token;
     }
     /**
      * Get header Authorization
@@ -206,8 +216,7 @@ class BaseController {
     }
 
     private function expiredAccessToken() {
-        $data = $this->refreshAction();
-
+        $data = $this->refreshToken();
         if (isset($data['access_token'])) {
             $access_token = $data['access_token'];
             $access_model = $this->loadModel('access');
@@ -232,23 +241,19 @@ class BaseController {
         return $granted;
     }
 
-    public function refreshAction() {
-        $refresh_token = $this->getToken(true);
-        // return $refresh_token;
-        if (!$refresh_token) {
-            $this->output->data = ['user' => null];
-            $this->output->status = 'fail';
-            $this->output->message = 'No Token Provided';
-        } else {
-            $data = $this->loadModel('token')->validateRefresh($refresh_token);
+    protected function refreshToken() {
+        $refresh_token = $this->getRefreshToken();
+
+        $data = false;
+        if ($refresh_token) {
+            $data = $this->loadModel('token')->validateRefresh($refresh_token); // => ['user' => $user, 'access_token' => $access_token]
             if (isset($data['user']) && $data['user']) {
                 $access_token = $this->issueToken($data['user']);
                 $data['access_token'] = $access_token;
             }
-            $this->output->data = $data;
-            $this->output->status = 'ok';
-            $this->output->message = 'Refresh Token Provided';
         }
-        return $data; // => ['user' => $user, 'access_token' => $access_token]
+        return $data; // => ['user' => $user, 'access_token' => $access_token] || false
     }
+
+
 }

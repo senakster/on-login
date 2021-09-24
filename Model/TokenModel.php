@@ -53,6 +53,8 @@ class TokenModel {
             return ['user' => null, 'error' => 'TokenModel: Invalid Signature: ' . json_encode($e)];
         } catch (Exception $e) {
             return ['user' => null, 'error' => 'TokenModel: Invalid Token' . json_encode($e)];
+        } catch (Error $e) {
+            return ['user' => null, 'error' => 'TokenModel: Invalid Token' . json_encode($e)];
         }
 
 
@@ -69,6 +71,22 @@ class TokenModel {
         }
         return ['user' => null, 'message' => 'TokenModel: Token not valid'];
 
+    }
+
+    public function validateRefresh_test($refresh_token) {
+        $rsecret = getenv('RSECRET');
+        try {
+            $decoded = JWT::decode($refresh_token, $rsecret, array('HS256'));
+        } catch (\Firebase\JWT\ExpiredException $e) {
+            return ['user' => null, 'error' => 'TokenModel: Expired Token: ' . json_encode($e)];
+        } catch (\Firebase\JWT\SignatureInvalidException $e) {
+            return ['user' => null, 'error' => 'TokenModel: Invalid Signature: ' . json_encode($e)];
+        } catch (Exception $e) {
+            return ['user' => null, 'error' => 'TokenModel: Invalid Token' . json_encode($e)];
+        } catch (Error $e) {
+            return ['user' => null, 'error' => 'TokenModel: Invalid Token' . json_encode($e)];
+        }
+        return $decoded;
     }
 
     public function getUserById($uid, $without = []) {
