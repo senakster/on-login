@@ -102,7 +102,6 @@ class UserModel {
             $placeholderArr = preg_filter('/^/', ':', array_keys(array_filter($data)));
             
             $dataStr = implode(', ', $dataArr);
-            // var_dump($data);
             $columns = implode(', ',$columnsArr);
             $placeholders = implode(', ',$placeholderArr);
             
@@ -122,9 +121,41 @@ class UserModel {
         } 
     }
 
-    public function upateUserSQL($data) {
-        $query = "SELECT * from `users` WHERE `email` = :user OR `username` = :user";
-        return "FAILED - UPDATE SQL $query"; 
+    public function updateUser($user, $data) {
+        $user = (array) $user;
+
+        try {
+            //REPLACE PASSWORD WITH HASH 
+            $data['hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
+            unset($data['password']);
+
+            // GENERATE SQL DATA 
+            $dataArr = array_values(array_filter($data));
+            $columnsArr = array_keys(array_filter($data));
+            $placeholderArr = preg_filter('/^/', ':', array_keys(array_filter($data)));
+            
+            $setArr = [];
+            foreach($columnsArr as $i => $v) {
+                $setArr[] = $columnsArr[$i] . " = " . $placeholderArr[$i];
+            }
+            $setStr = implode(', ', $setArr);
+            
+            // EXECUTE SQL
+            $query = "UPDATE `users` SET $setStr WHERE `userid` = :userid";
+            $sth = $this->db->con->prepare($query) or die(var_dump($this->connection->errorInfo()));
+            foreach( $placeholderArr as $k => $p) {
+                $sth->bindParam($p,$dataArr[$k],PDO::PARAM_STR);
+            }
+            $sth->bindParam(':userid',$user['userid'],PDO::PARAM_INT);
+
+            if ($sth->execute()) {
+                return $this->getUserById($user['userid'], ['hash', 'refresh_token']);
+            } else {
+                return 'FAILED - Something went wrong :(';
+            }
+        } catch (PDOException $e) {
+            return 'FAILED - ' . $e->getMessage();
+        } 
     }
   
     public function setRefreshToken($refresh_token, $uid) {

@@ -20,6 +20,7 @@ class AuthenticateController extends BaseController{
 
     function validateAction() {
         $jwt = $this->getToken();
+        // return $jwt;
         if (!$jwt) {
             $this->refreshAction();
         } else {
@@ -36,11 +37,10 @@ class AuthenticateController extends BaseController{
         if ($valid) {
             $this->output->status = 'ok';
             $this->output->message = 'Login Succeeded';
-            $user = $this->userModel->getUserSQL($data['email'], ['hash']);
-            $token_pair = $this->issueToken($user);
-            $this->userModel->setRefreshToken($token_pair['refresh_token'], $user['userid']);
+            $user = $this->userModel->getUserSQL($data['email'], ['hash', 'refresh_token']);
+            $access_token = $this->issueToken($user);
             $redirect = ['success' => '//omstilling.nu', 'failure' => '/Error'];
-            $this->output->data = ['user' => $user, 'access_token' => $token_pair['access_token'], 'redirect' => \Config\REDIRECT];
+            $this->output->data = ['user' => $user, 'access_token' => $access_token, 'redirect' => \Config\REDIRECT];
         } else {
             $this->unsetCookie();
             $this->output->data = ['user' => null];
@@ -57,41 +57,25 @@ class AuthenticateController extends BaseController{
         $this->serveJSON($this->output);
     }
 
-
-    public function refreshAction() {
-        $refresh_token = $this->getToken(true);
-        if (!$refresh_token) {
-            $this->output->data = ['user' => null];
-            $this->output->status = 'fail';
-            $this->output->message = 'No Token Provided';
-        } else {
-            // $this->validateToken($jwt);
-            $data = $this->loadModel('token')->validateRefresh($refresh_token);
-            $this->output->data = $data;
-            $this->output->status = 'ok';
-            $this->output->message = 'Refresh Token Provided';
-        }
-        // $this->serveJSON($this->output);
-
-    }
-
     private function validateToken ($jwt) {
         $message = 'Authentication failed';
         $valid = false;
 
         $data = $this->loadModel('token')->validateToken($jwt);
-        if ($data)
+        if ($data) {
 
-        /**
-         * OUTPUT & SERVE
-         */
-        $message = $data['message'] ? $data['message'] : $message; 
-        $status = 'ok';
-
-        $this->output->data = $data;
-        $this->output->status = $status;
-        $this->output->message = $message;
+            /**
+             * OUTPUT & SERVE
+             */
+            $message = $data['message'] ? $data['message'] : $message; 
+            $status = 'ok';
+            
+            $this->output->data = $data;
+            $this->output->status = $status;
+            $this->output->message = $message;
+        }
         return $valid;
+
     } 
 
 

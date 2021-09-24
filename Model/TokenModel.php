@@ -21,17 +21,23 @@ class TokenModel {
         try {
             $decoded = JWT::decode($jwt, $secret, array('HS256'));
         } catch (\Firebase\JWT\ExpiredException $e) {
-            return ['user' => null, 'error' => 'Expired Token' . json_encode($e)];
+            return ['user' => null, 'error' => 'TokenModel: Expired Token' . json_encode($e)];
         } catch (\Firebase\JWT\SignatureInvalidException $e) {
-            return ['user' => null, 'error' => 'Invalid Signature' . json_encode($e)];
+            return ['user' => null, 'error' => 'TokenModel: Invalid Signature' . json_encode($e)];
         } catch (Exception $e) {
-            return ['user' => null, 'error' => 'Invalid Token' . json_encode($e)];
+            return ['user' => null, 'error' => 'TokenModel: Invalid Token' . json_encode($e)];
         } catch (Error $e) {
-            return ['user' => null, 'error' => 'Invalid Token' . json_encode($e)];
+            return ['user' => null, 'error' => 'TokenModel: Invalid Token' . json_encode($e)];
         }
         $valid = $valid && $decoded && !$expired;
         $message = $valid ? 'Authentication succeeded' : '';
         $user = $valid ? $decoded->usr : null;
+        if(isset($user['hash'])) {
+            unset($user['hash']);
+        }
+        if(isset($user['refresh_token'])) {
+            unset($user['refresh_token']);
+        }
         return ['user' => $user, 'message' => $message];
     }
 
@@ -42,11 +48,11 @@ class TokenModel {
         try {
             $decoded = JWT::decode($refresh_token, $rsecret, array('HS256'));
         } catch (\Firebase\JWT\ExpiredException $e) {
-            return ['user' => null, 'error' => 'Expired Token: ' . json_encode($e)];
+            return ['user' => null, 'error' => 'TokenModel: Expired Token: ' . json_encode($e)];
         } catch (\Firebase\JWT\SignatureInvalidException $e) {
-            return ['user' => null, 'error' => 'Invalid Signature: ' . json_encode($e)];
+            return ['user' => null, 'error' => 'TokenModel: Invalid Signature: ' . json_encode($e)];
         } catch (Exception $e) {
-            return ['user' => null, 'error' => 'Invalid Token' . json_encode($e)];
+            return ['user' => null, 'error' => 'TokenModel: Invalid Token' . json_encode($e)];
         }
 
 
@@ -58,29 +64,26 @@ class TokenModel {
         $valid = $valid && $refresh_token === $user['refresh_token'];
 
         if($valid) {
-            $token_pair = $this->createToken($user);
-            $this->setRefreshToken($token_pair['refresh_token'],$user['userid']);
-            $message = $valid ? 'Authentication succeeded' : '';
             unset($user['refresh_token']);
-            return ['user' => $user, 'access_token' => $token_pair['access_token']];
+            return ['user' => $user];
         }
-        return ['user' => $user, 'message' => 'Token not valid'];
+        return ['user' => null, 'message' => 'TokenModel: Token not valid'];
 
     }
 
-    private function getUserById($uid, $without = []) {
+    public function getUserById($uid, $without = []) {
         try {
         $fetchSchema = array_diff($this->schemas->userFetch, $without); 
         //FETCH REFRESH TOKEN FOR INVALIDATION
         $fetchSchema[] = 'refresh_token';
         $fetchSchema = implode(',', $fetchSchema); 
         $query = "SELECT $fetchSchema from `users` WHERE `userid` = :userid LIMIT 1";
-        $sth = $this->db->con->prepare($query);
+        $sth = $this->db->con->prepare($query) or die(var_dump($this->connection->errorInfo()));
         $sth->bindParam(':userid', $uid, PDO::PARAM_STR, 48);
         $sth->execute();
         $result = $sth->fetch(PDO::FETCH_ASSOC);
         foreach($without as $u){
-            if ($result && $result[$u]) {
+            if ($result && isset($result[$u])) {
                 unset($result[$u]);
             }
         }
@@ -102,7 +105,12 @@ class TokenModel {
 
     private function formPayload($user){
         $secret = getenv('SECRET');
+        $sane_user = [];
 
+        foreach($this->schemas->userFetch as $key){
+            $sane_user[$key] = $user[$key];
+        }
+        
         $issuedAt   = new \DateTimeImmutable();
         $expire     = $issuedAt->modify('+15 minutes')->getTimestamp();      // Add 60 seconds
         $serverName = $_SERVER['SERVER_NAME'];
@@ -112,7 +120,7 @@ class TokenModel {
             'iss'  => $serverName,                       // Issuer
             'nbf'  => $issuedAt->getTimestamp(),         // Not before
             'exp'  => $expire,                           // Expire
-            'usr'  => $user
+            'usr'  => $sane_user
         ]; //INCLUDE PERMISSIONS
 
         $rsecret = getenv('RSECRET');

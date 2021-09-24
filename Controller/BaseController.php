@@ -1,6 +1,6 @@
-<?php 
+<?php
 namespace Controller;
-
+use Config;
 class BaseController {
     var $output;
     function __construct() {
@@ -18,13 +18,13 @@ class BaseController {
     public function __call($name, $arguments)
     {
         $this->output->status = 'fail';
-        $this->output->message = 'Cannot Process Request' . $name;
+        $this->output->message = 'Cannot Process Request: ' . $name;
         $this->serveJSON($this->output);
     }
-    
+
     /**
     *  Encode URL-friendly string
-    *  
+    *
     *  @return string
     */
     protected function base64UrlEncode($text)
@@ -35,7 +35,7 @@ class BaseController {
            base64_encode($text)
        );
     }
-    
+
     protected function loadController($name = false) {
         if ($name) {
             try {
@@ -68,19 +68,19 @@ class BaseController {
     /**
      * @param {params} array
      * @return {selectedParams} array
-     * 
+     *
      */
     protected function getParams($params = []){
         $selectedParams = [];
         $raw = json_decode(file_get_contents("php://input"));
         foreach($params as $p) {
             if ($_POST && isset($_POST[$p])) {
-            $selectedParams[$p] = $_POST[$p]; 
+            $selectedParams[$p] = $_POST[$p];
             } else if (isset($raw->$p)) {
-                $selectedParams[$p] = $raw->$p; 
+                $selectedParams[$p] = $raw->$p;
             }
 
-        } 
+        }
         return $selectedParams;
     }
 
@@ -97,7 +97,7 @@ class BaseController {
         }
         return $token;
     }
-    /** 
+    /**
      * Get header Authorization
      * */
     protected function getAuthorizationHeader(){
@@ -151,7 +151,7 @@ class BaseController {
         setcookie("jwt", '', $cookie_options);
         setcookie("jwt_refresh", '', $cookie_options);
     }
-    
+
     protected function issueToken($user) {
         $date = new \DateTimeImmutable();
         $token_pair = $this->loadModel('token')->createToken($user);
@@ -173,6 +173,82 @@ class BaseController {
             'samesite' => 'None' // None || Lax || Strict
           );
         setcookie("jwt_refresh", $token_pair['refresh_token'], $cookie_options);
-        return $token_pair;
+        $this->loadModel('user')->setRefreshToken($token_pair['refresh_token'], $user['userid']);
+        return $token_pair['access_token'];
+    }
+
+    /**
+     * JWT ACCESS TOKEN VALIDATION FOR ACTION
+     */
+    protected function accessValidation($app_id = Config\APP_ID, $permission_level = 'admin'){
+        $access_token = $this->getBearerToken();
+        // $this->output->data = $access_token;
+        // return;
+        if ($access_token) {
+            $access_model = $this->loadModel('access');
+            $data = $access_model->validateAccessToken($access_token);
+            // $this->output->data = $data;
+        }
+
+        if($data === 'Access Violation: Expired') {
+            $this->expiredAccessToken();
+        }
+
+        if (isset($data->usr->userid) && intval($data->usr->userid) > 0) {
+            $user_id = $data->usr->userid;
+            $permissions = $access_model->getUserPermissions($user_id);
+            return ['user' => $data->usr, 'granted' => $this->grantPermission($app_id, $permission_level, $permissions)];
+        }
+
+        // $this->output->status = 'ok';
+        // $this->output->message = 'Access Validation';
+        return false;
+    }
+
+    private function expiredAccessToken() {
+        $data = $this->refreshAction();
+
+        if (isset($data['access_token'])) {
+            $access_token = $data['access_token'];
+            $access_model = $this->loadModel('access');
+            $decoded = $access_model->validateAccessToken($access_token);
+            if ($decoded && $decoded->usr) {
+                $this->output->data = ['user' => $decoded->usr, 'access_token' => $access_token];
+                return;
+            } 
+        }
+
+        $this->output->data = ['user' => null , 'access_token' => '', 'refreshAction' => $data];
+        return;
+    }
+
+    private function grantPermission($app_id, $permission_level, $permissions){
+        $granted = false;
+        foreach($permissions as $p) {
+            if ($p['appid'] == "$app_id" && $p['role'] === $permission_level) {
+                $granted = true;
+            }
+        }
+        return $granted;
+    }
+
+    public function refreshAction() {
+        $refresh_token = $this->getToken(true);
+        // return $refresh_token;
+        if (!$refresh_token) {
+            $this->output->data = ['user' => null];
+            $this->output->status = 'fail';
+            $this->output->message = 'No Token Provided';
+        } else {
+            $data = $this->loadModel('token')->validateRefresh($refresh_token);
+            if (isset($data['user']) && $data['user']) {
+                $access_token = $this->issueToken($data['user']);
+                $data['access_token'] = $access_token;
+            }
+            $this->output->data = $data;
+            $this->output->status = 'ok';
+            $this->output->message = 'Refresh Token Provided';
+        }
+        return $data; // => ['user' => $user, 'access_token' => $access_token]
     }
 }
